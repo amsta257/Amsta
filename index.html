@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Happy Birthday — 20/09/2006</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: #07060f;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #fff;
+  }
+  #overlay {
+    position: absolute;
+    top: 18px; left: 0; width: 100%;
+    text-align: center;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #overlay h1 {
+    font-size: clamp(1.8rem, 5vw, 3.2rem);
+    margin: 0;
+    background: linear-gradient(90deg, #ff69b4, #ffd700, #00bfff, #ff69b4);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shine 6s linear infinite;
+  }
+  @keyframes shine {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 300% 50%; }
+  }
+  #countdown {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 8px 20px;
+    border-radius: 40px;
+    font-size: clamp(.85rem, 2.2vw, 1.1rem);
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.15);
+  }
+  #age { margin-top: 6px; font-size: .95rem; opacity: .8; }
+  .hint {
+    position: absolute;
+    bottom: 16px; width: 100%;
+    text-align: center;
+    font-size: 13px;
+    color: rgba(255,255,255,.5);
+    z-index: 10;
+  }
+  #modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 3, 15, .92);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+  #modal.open { display: flex; }
+  .modal-box {
+    position: relative;
+    max-width: 560px;
+    width: 100%;
+    background: linear-gradient(160deg, #1b1130, #0d0820);
+    border: 2px solid rgba(255,105,180,.45);
+    border-radius: 22px;
+    padding: 18px;
+    box-shadow: 0 0 60px rgba(255,105,180,.35);
+  }
+  .modal-box img {
+    width: 100%;
+    max-height: 60vh;
+    object-fit: contain;
+    border-radius: 14px;
+    display: block;
+    background: #000;
+  }
+  .modal-box p {
+    margin: 16px 6px 4px;
+    font-size: 1.1rem;
+    line-height: 1.5;
+    text-align: center;
+    color: #ffd9ec;
+  }
+  #closeModal {
+    position: absolute;
+    top: -14px; right: -14px;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: #ff69b4;
+    color: #fff;
+    font-size: 26px;
+    line-height: 36px;
+    text-align: center;
+    cursor: pointer;
+    border: 3px solid #0d0820;
+    user-select: none;
+  }
+  #loader {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #07060f;
+    z-index: 50;
+    font-size: 1.1rem;
+    letter-spacing: 2px;
+    transition: opacity .6s;
+  }
+  #loader.hide { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+
+  <div id="loader">LOADING…</div>
+
+  <div id="overlay">
+    <h1>Happy Birthday!</h1>
+    <div id="countdown">Loading…</div>
+    <div id="age"></div>
+  </div>
+
+  <div class="hint">🖱️ Drag to rotate • Scroll to zoom • Click a photo</div>
+
+  <div id="modal">
+    <div class="modal-box">
+      <span id="closeModal">&times;</span>
+      <img id="modalImg" alt="memory" />
+      <p id="modalMsg"></p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+/* ============================================================
+   ✏️  EDIT THESE 4 THINGS
+   ============================================================ */
+
+const PHOTOS = [
+  { src: 'photos/photo1.jpg', message: 'Happy Birthday! 🎉' },
+  { src: 'photos/photo2.jpg', message: 'Best memories together 💖' },
+  { src: 'photos/photo3.jpg', message: 'Another year of awesome 🚀' },
+  { src: 'photos/photo4.jpg', message: 'Wishing you joy & cake 🎂' },
+  { src: 'photos/photo5.jpg', message: 'Stay amazing, always ✨' },
+  { src: 'photos/photo6.jpg', message: 'Cheers to you 🥳' },
+];
+
+const YOUR_NAME   = 'Friend';   // shown on your birthday
+const BIRTH_DAY   = 20;         // day of month
+const BIRTH_MONTH = 8;          // 8 = September (0 = Jan)
+const BIRTH_YEAR  = 2006;
+
+/* ============================================================ */
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x07060f);
+scene.fog = new THREE.FogExp2(0x07060f, 0.018);
+
+const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 500);
+camera.position.set(0, 7, 15);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.target.set(0, 4, 0);
+controls.minDistance = 6;
+controls.maxDistance = 40;
+controls.maxPolarAngle = Math.PI / 2 + 0.15;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
+keyLight.position.set(8, 15, 10);
+keyLight.castShadow = true;
+scene.add(keyLight);
+
+const pinkLight = new THREE.PointLight(0xff69b4, 1.2, 40);
+pinkLight.position.set(-10, 8, -10);
+scene.add(pinkLight);
+
+const blueLight = new THREE.PointLight(0x00bfff, 1.0, 40);
+blueLight.position.set(10, 8, -10);
+scene.add(blueLight);
+const floor = new THREE.Mesh(
+  new THREE.CircleGeometry(22, 64),
+  new THREE.MeshStandardMaterial({ color: 0x140f24, roughness: 0.85, metalness: 0.25 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+/* CAKE */
+const cakeGroup = new THREE.Group();
+scene.add(cakeGroup);
+
+function tier(rTop, rBot, h, y, color) {
+  const m = new THREE.Mesh(
+    new THREE.CylinderGeometry(rTop, rBot, h, 64),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.08 })
+  );
+  m.position.y = y;
+  m.castShadow = true;
+  m.receiveShadow = true;
+  cakeGroup.add(m);
+}
+
+tier(3.0, 3.0, 0.20, 0.10, 0xffffff);
+tier(2.20, 2.20, 0.85, 0.62, 0xff69b4);
+tier(1.70, 1.70, 0.75, 1.42, 0xfff0f5);
+tier(1.20, 1.20, 0.65, 2.12, 0x8b4513);
+
+const candles = [];
+const candleColors = [0xff2d55, 0x34c759, 0x0a84ff, 0xffd60a, 0xbf5af2];
+
+for (let i = 0; i < 5; i++) {
+  const a = (i / 5) * Math.PI * 2;
+  const g = new THREE.Group();
+  g.position.set(Math.cos(a) * 0.7, 2.45, Math.sin(a) * 0.7);
+
+  const stick = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 0.62, 16),
+    new THREE.MeshStandardMaterial({ color: candleColors[i], emissive: candleColors[i], emissiveIntensity: 0.35 })
+  );
+  stick.position.y = 0.31;
+  stick.castShadow = true;
+  g.add(stick);
+
+  const flame = new THREE.Mesh(
+    new THREE.SphereGeometry(0.13, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xffb347 })
+  );
+  flame.position.y = 0.75;
+  flame.scale.set(0.75, 1.5, 0.75);
+  g.add(flame);
+
+  const fl = new THREE.PointLight(0xffa500, 0.8, 4);
+  fl.position.y = 0.75;
+  g.add(fl);
+
+  cakeGroup.add(g);
+  candles.push({ group: g, flame, light: fl, baseY: 2.45, phase: Math.random() * 6.28 });
+}
+
+/* BALLOONS */
+const balloons = [];
+const balloonColors = [0xff69b4, 0x00bfff, 0xffd700, 0xff4500, 0x9370db, 0x00ff7f];
+
+for (let i = 0; i < 14; i++) {
+  const a = (i / 14) * Math.PI * 2 + Math.random();
+  const r = 10 + Math.random() * 6;
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(0.55, 24, 24),
+    new THREE.MeshStandardMaterial({ color: balloonColors[i % balloonColors.length], roughness: 0.25, metalness: 0.15 })
+  );
+  body.scale.set(1, 1.22, 1);
+  g.add(body);
+
+  const y = 6 + Math.random() * 6;
+  g.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+  scene.add(g);
+  balloons.push({ group: g, baseY: y, phase: Math.random() * 6.28 });
+}
+
+/* CONFETTI */
+const CONF_N = 600;
+const confGeo = new THREE.BufferGeometry();
+const confPos = new Float32Array(CONF_N * 3);
+const confCol = new Float32Array(CONF_N * 3);
+const confVel = [];
+const palette = [0xff69b4, 0x00bfff, 0xffd700, 0xff4500, 0x9370db, 0x00ff7f, 0xffffff];
+
+for (let i = 0; i < CONF_N; i++) {
+  confPos[i * 3]     = (Math.random() - 0.5) * 45;
+  confPos[i * 3 + 1] = Math.random() * 26;
+  confPos[i * 3 + 2] = (Math.random() - 0.5) * 45;
+  const c = new THREE.Color(palette[(Math.random() * palette.length) | 0]);
+  confCol[i * 3] = c.r; confCol[i * 3 + 1] = c.g; confCol[i * 3 + 2] = c.b;
+  confVel.push({ y: 0.012 + Math.random() * 0.035, x: (Math.random() - 0.5) * 0.012, z: (Math.random() - 0.5) * 0.012 });
+}
+confGeo.setAttribute('position', new THREE.BufferAttribute(confPos, 3));
+confGeo.setAttribute('color', new THREE.BufferAttribute(confCol, 3));
+const confetti = new THREE.Points(confGeo, new THREE.PointsMaterial({
+  size: 0.16, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false
+}));
+scene.add(confetti);
+
+/* PHOTO GALLERY */
+const RING_RADIUS = 9;
+const RING_Y = 5.8;
+const PHOTO_SIZE = 2.6;
+
+const galleryGroup = new THREE.Group();
+scene.add(galleryGroup);
+
+const photoMeshes = [];
+const photoItems = [];
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function wrapText(ctx, text, x, y, maxW, lineH) {
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (let n = 0; n < words.length; n++) {
+    const test = line + words[n] + ' ';
+    if (ctx.measureText(test).width > maxW && n > 0) { lines.push(line.trim()); line = words[n] + ' '; }
+    else { line = test; }
+  }
+  lines.push(line.trim());
+  const total = lines.length * lineH;
+  const startY = y - total / 2 + lineH / 2;
+  for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], x, startY + i * lineH);
+}
+
+function makeMessageTexture(text) {
+  const W = 640, H = 220;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, 'rgba(40, 15, 60, 0.92)');
+  grad.addColorStop(1, 'rgba(15, 8, 35, 0.92)');
+  ctx.fillStyle = grad;
+  roundRect(ctx, 8, 8, W - 16, H - 16, 34);
+  ctx.fill();
+
+  ctx.shadowColor = '#ff69b4';
+  ctx.shadowBlur = 22;
+  ctx.strokeStyle = '#ff69b4';
+  ctx.lineWidth = 5;
+  roundRect(ctx, 8, 8, W - 16, H - 16, 34);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 46px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  wrapText(ctx, text, W / 2, H / 2, W - 110, 56);
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return tex;
+}
+
+function makePlaceholderTexture(i) {
+  const S = 512;
+  const cv = document.createElement('canvas');
+  cv.width = S; cv.height = S;
+  const ctx = cv.getContext('2d');
+  const hue = (i * 57) % 360;
+  const g = ctx.createLinearGradient(0, 0, S, S);
+  g.addColorStop(0, `hsl(${hue}, 65%, 55%)`);
+  g.addColorStop(1, `hsl(${(hue + 60) % 360}, 65%, 30%)`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+  ctx.font = '150px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('📷', S / 2, S / 2 - 50);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 34px sans-serif';
+  ctx.fillText('Missing: ' + PHOTOS[i].src, S / 2, S / 2 + 90);
+  const tex = new THREE.CanvasTexture(cv);
+  return tex;
+}
+
+function fitSquare(tex) {
+  const img = tex.image;
+  if (!img || !img.width || !img.height) return;
+  const a = img.width / img.height;
+  if (a > 1) {
+    const r = 1 / a;
+    tex.repeat.set(r, 1);
+    tex.offset.set((1 - r) / 2, 0);
+  } else {
+    tex.repeat.set(1, a);
+    tex.offset.set(0, (1 - a) / 2);
+  }
+  tex.needsUpdate = true;
+}
+
+const texLoader = new THREE.TextureLoader();
+let loaded = 0;
+
+PHOTOS.forEach((item, i) => {
+  const angle = (i / PHOTOS.length) * Math.PI * 2;
+
+  const card = new THREE.Group();
+  card.position.set(Math.cos(angle) * RING_RADIUS, RING_Y, Math.sin(angle) * RING_RADIUS);
+  card.rotation.y = Math.PI / 2 - angle;
+  galleryGroup.add(card);
+
+  const frame = new THREE.Mesh(
+    new THREE.BoxGeometry(PHOTO_SIZE + 0.26, PHOTO_SIZE + 0.26, 0.16),
+    new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.85, roughness: 0.28, emissive: 0x6b4a00, emissiveIntensity: 0.6 })
+  );
+  frame.position.z = -0.11;
+  card.add(frame);
+
+  const photoMat = new THREE.MeshBasicMaterial({ map: makePlaceholderTexture(i), toneMapped: false });
+  const photoMesh = new THREE.Mesh(new THREE.PlaneGeometry(PHOTO_SIZE, PHOTO_SIZE), photoMat);
+  photoMesh.userData.photoIndex = i;
+  card.add(photoMesh);
+  photoMeshes.push(photoMesh);
+
+  const msgMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.2, 1.1),
+    new THREE.MeshBasicMaterial({ map: makeMessageTexture(item.message), transparent: true, toneMapped: false })
+  );
+  msgMesh.position.y = -PHOTO_SIZE / 2 - 0.72;
+  card.add(msgMesh);
+
+  photoItems.push({ mesh: photoMesh, src: item.src, message: item.message, url: null, card });
+
+  texLoader.load(
+    item.src,
+    (tex) => {
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      fitSquare(tex);
+      photoMat.map = tex;
+      photoMat.needsUpdate = true;
+      photoItems[i].url = item.src;
+      loaded++;
+      if (loaded >= PHOTOS.length) hideLoader();
+    },
+    undefined,
+    () => {
+      console.warn('❌ Failed to load:', item.src);
+      loaded++;
+      if (loaded >= PHOTOS.length) hideLoader();
+    }
+  );
+});
+
+setTimeout(hideLoader, 3000);
+function hideLoader() {
+  const l = document.getElementById('loader');
+  if (l && !l.classList.contains('hide')) l.classList.add('hide');
+}
+
+/* CLICK / HOVER */
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+function updatePointer(e) {
+  pointer.x = (e.clientX / innerWidth) * 2 - 1;
+  pointer.y = -(e.clientY / innerHeight) * 2 + 1;
+}
+
+function pickPhoto(e) {
+  updatePointer(e);
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(photoMeshes, false);
+  return hits.length ? hits[0].object.userData.photoIndex : -1;
+}
+
+renderer.domElement.addEventListener('mousemove', (e) => {
+  renderer.domElement.style.cursor = pickPhoto(e) >= 0 ? 'pointer' : 'grab';
+});
+
+renderer.domElement.addEventListener('click', (e) => {
+  const idx = pickPhoto(e);
+  if (idx >= 0) openModal(idx);
+});
+
+const modal = document.getElementById('modal');
+const modalImg = document.getElementById('modalImg');
+const modalMsg = document.getElementById('modalMsg');
+
+function openModal(i) {
+  const item = photoItems[i];
+  modalImg.src = item.url || '';
+  modalMsg.textContent = item.message;
+  modal.classList.add('open');
+}
+
+function closeModal() {
+  modal.classList.remove('open');
+  modalImg.src = '';
+}
+
+document.getElementById('closeModal').addEventListener('click', closeModal);
+modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+/* COUNTDOWN */
+function nextBirthday() {
+  const now = new Date();
+  let d = new Date(now.getFullYear(), BIRTH_MONTH, BIRTH_DAY, 0, 0, 0);
+  if (now >= d) d = new Date(now.getFullYear() + 1, BIRTH_MONTH, BIRTH_DAY, 0, 0, 0);
+  return d;
+}
+
+function updateCountdown() {
+  const now = new Date();
+  const isToday = now.getMonth() === BIRTH_MONTH && now.getDate() === BIRTH_DAY;
+
+  if (isToday) {
+    const age = now.getFullYear() - BIRTH_YEAR;
+    document.getElementById('countdown').textContent = "🎉 It's your birthday! 🎉";
+    document.getElementById('age').textContent = `Happy ${age}th Birthday, ${YOUR_NAME}!`;
+    return;
+  }
+
+  const nb = nextBirthday();
+  const diff = nb - now;
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff / 3600000) % 24);
+  const m = Math.floor((diff / 60000) % 60);
+  const s = Math.floor((diff / 1000) % 60);
+
+  document.getElementById('countdown').textContent = `${d}d ${h}h ${m}m ${s}s until your birthday`;
+
+  const turning = nb.getFullYear() - BIRTH_YEAR;
+  document.getElementById('age').textContent =
+    `Turning ${turning} on ` + nb.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+setInterval(updateCountdown, 1000);
+updateCountdown();
+
+/* ANIMATION */
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+
+  cakeGroup.rotation.y = t * 0.12;
+  galleryGroup.rotation.y = t * 0.13;
+
+  candles.forEach((c) => {
+    const f = 1 + Math.sin(t * 11 + c.phase) * 0.13;
+    c.flame.scale.set(0.75 * f, 1.5 * f, 0.75 * f);
+    c.light.intensity = 0.8 * f;
+    c.group.position.y = c.baseY + Math.sin(t * 2 + c.phase) * 0.02;
+  });
+
+  balloons.forEach((b) => {
+    b.group.position.y = b.baseY + Math.sin(t * 1.4 + b.phase) * 0.45;
+    b.group.rotation.z = Math.sin(t * 0.8 + b.phase) * 0.08;
+  });
+
+  photoItems.forEach((p, i) => {
+    p.card.position.y = RING_Y + Math.sin(t * 1.2 + i) * 0.14;
+    p.card.rotation.z = Math.sin(t * 0.9 + i) * 0.025;
+  });
+
+  const pos = confGeo.attributes.position.array;
+  for (let i = 0; i < CONF_N; i++) {
+    pos[i * 3 + 1] -= confVel[i].y;
+    pos[i * 3]     += confVel[i].x;
+    pos[i * 3 + 2] += confVel[i].z;
+    if (pos[i * 3 + 1] < 0) {
+      pos[i * 3 + 1] = 26;
+      pos[i * 3]     = (Math.random() - 0.5) * 45;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * 45;
+    }
+  }
+  confGeo.attributes.position.needsUpdate = true;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
